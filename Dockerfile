@@ -32,6 +32,7 @@ RUN apk add --no-cache \
   php8-pdo \
   php8-pdo_mysql \
   php8-pdo_pgsql \
+  php8-pecl-xdebug \
   supervisor
 
 # Create symlink so programs depending on `php` still function
