@@ -34,6 +34,10 @@ RUN apk add --no-cache \
   php81-pdo_pgsql \
   php81-exif \
   php81-pecl-xdebug \
+  php81-xmlwriter \
+  php81-simplexml \
+  php81-iconv \
+  php81-bcmath \
   supervisor
 
 # Create symlink so programs depending on `php` still function
