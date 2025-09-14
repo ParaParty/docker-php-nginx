@@ -33,6 +33,7 @@ RUN apk add --no-cache \
   php81-pdo_mysql \
   php81-pdo_pgsql \
   php81-exif \
+  php81-xmlwriter \
   php81-pecl-xdebug \
   supervisor
 
