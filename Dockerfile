@@ -1,63 +1,87 @@
-ARG ALPINE_VERSION=3.16
-FROM alpine:${ALPINE_VERSION}
+ARG ALPINE_VERSION=3.24
+
+# Build PHP from Alpine's own php83 APKBUILD at a newer upstream release, so
+# the image gets PHP security fixes before Alpine ships them while keeping the
+# stock php83 package layout
+FROM docker.io/alpine:${ALPINE_VERSION} AS php-build
+ARG APORTS_REF=3.24-stable
+ARG PHP_VERSION=8.3.36
+ARG PHP_SHA256=dd54693aa334c5c4d72e9aee96b082c2473750a18a6c1d105789c93a3b1692fd
+RUN apk update && \
+    apk add alpine-sdk curl && \
+    git clone --depth 1 --branch "${APORTS_REF}" --filter=blob:none --sparse https://github.com/alpinelinux/aports.git /aports && \
+    git -C /aports sparse-checkout set community/php83 && \
+    cd /aports/community/php83 && \
+    sed -i -e "s/^pkgver=.*/pkgver=${PHP_VERSION}/" -e 's/^pkgrel=.*/pkgrel=0\noptions="!check"/' APKBUILD && \
+    mkdir -p /var/cache/distfiles && \
+    curl -fsSL -o /var/cache/distfiles/php-${PHP_VERSION}.tar.xz https://www.php.net/distributions/php-${PHP_VERSION}.tar.xz && \
+    echo "${PHP_SHA256}  /var/cache/distfiles/php-${PHP_VERSION}.tar.xz" | sha256sum -c - && \
+    abuild -F checksum && \
+    abuild-keygen -an && \
+    cp /root/.abuild/*.rsa.pub /etc/apk/keys/ && \
+    abuild -F -r && \
+    cp /root/.abuild/*.rsa.pub /root/packages/
+
+FROM docker.io/alpine:${ALPINE_VERSION} AS app
+ARG PHP_VERSION=8.3.36
 LABEL Maintainer="Tim de Pater <code@trafex.nl>"
-LABEL Description="Lightweight container with Nginx 1.22 & PHP 8.1 based on Alpine Linux."
+LABEL Description="Lightweight container with Nginx & PHP 8.3 based on Alpine Linux."
 # Setup document root
 WORKDIR /var/www/html
 
 # Install packages and remove default server definition
-RUN apk add --no-cache \
+RUN --mount=type=bind,from=php-build,source=/root/packages,target=/php-packages \
+  cp /php-packages/*.rsa.pub /etc/apk/keys/ && \
+  apk add --no-cache --repository /php-packages/community \
   curl \
   nginx \
-  php81 \
-  php81-ctype \
-  php81-curl \
-  php81-dom \
-  php81-fpm \
-  php81-gd \
-  php81-intl \
-  php81-mbstring \
-  php81-mysqli \
-  php81-opcache \
-  php81-openssl \
-  php81-phar \
-  php81-session \
-  php81-xml \
-  php81-xmlreader \
-  php81-zlib \
-  php81-redis \
-  php81-tokenizer \
-  php81-fileinfo \
-  php81-zip \
-  php81-pdo \
-  php81-pdo_mysql \
-  php81-pdo_pgsql \
-  php81-exif \
-  php81-xmlwriter \
-  php81-pecl-xdebug \
-  supervisor
+  php83 \
+  php83-ctype \
+  php83-curl \
+  php83-dom \
+  php83-fpm \
+  php83-gd \
+  php83-intl \
+  php83-mbstring \
+  php83-mysqli \
+  php83-opcache \
+  php83-openssl \
+  php83-phar \
+  php83-session \
+  php83-xml \
+  php83-xmlreader \
+  php83-zlib \
+  php83-redis \
+  php83-tokenizer \
+  php83-fileinfo \
+  php83-zip \
+  php83-pdo \
+  php83-pdo_mysql \
+  php83-pdo_pgsql \
+  php83-exif \
+  php83-xmlwriter \
+  php83-pecl-xdebug \
+  supervisor && \
+  rm /etc/apk/keys/$(basename /php-packages/*.rsa.pub) && \
+  php83 -r 'exit(PHP_VERSION === getenv("PHP_VERSION") ? 0 : 1);'
 
 # Create symlink so programs depending on `php` still function
-RUN ln -s /usr/bin/php81 /usr/bin/php
+RUN ln -s /usr/bin/php83 /usr/bin/php
 
-RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
-    php -r "if (hash_file('sha384', 'composer-setup.php') === 'dac665fdc30fdd8ec78b38b9800061b4150413ff2e3b6f88543c636f7cd84f6db9189d43a81e5503cda447da73c7e5b6') { echo 'Installer verified'.PHP_EOL; } else { echo 'Installer corrupt'.PHP_EOL; unlink('composer-setup.php'); exit(1); }" && \
-    php composer-setup.php && \
-    php -r "unlink('composer-setup.php');" && \
-    mv composer.phar /usr/local/bin/composer
+COPY --from=docker.io/composer:2 /usr/bin/composer /usr/local/bin/composer
 
 # Configure nginx
 COPY config/nginx.conf /etc/nginx/nginx.conf
 
 # Configure PHP-FPM
-COPY config/fpm-pool.conf /etc/php81/php-fpm.d/www.conf
-COPY config/php.ini /etc/php81/conf.d/custom.ini
+COPY config/fpm-pool.conf /etc/php83/php-fpm.d/www.conf
+COPY config/php.ini /etc/php83/conf.d/custom.ini
 
 # Configure supervisord
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Make sure files/folders needed by the processes are accessable when they run under the nobody user
-RUN chown -R nobody.nobody /var/www/html /run /var/lib/nginx /var/log/nginx
+RUN chown -R nobody:nobody /var/www/html /run /var/lib/nginx /var/log/nginx
 
 # Switch to use a non-root user from here on
 USER nobody
