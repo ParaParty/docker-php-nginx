@@ -1,7 +1,7 @@
-ARG ALPINE_VERSION=3.16
+ARG ALPINE_VERSION=3.24
 FROM alpine:${ALPINE_VERSION}
 LABEL Maintainer="Tim de Pater <code@trafex.nl>"
-LABEL Description="Lightweight container with Nginx 1.22 & PHP 8.1 based on Alpine Linux."
+LABEL Description="Lightweight container with Nginx & PHP 8.3 based on Alpine Linux."
 # Setup document root
 WORKDIR /var/www/html
 
@@ -9,55 +9,51 @@ WORKDIR /var/www/html
 RUN apk add --no-cache \
   curl \
   nginx \
-  php81 \
-  php81-ctype \
-  php81-curl \
-  php81-dom \
-  php81-fpm \
-  php81-gd \
-  php81-intl \
-  php81-mbstring \
-  php81-mysqli \
-  php81-opcache \
-  php81-openssl \
-  php81-phar \
-  php81-session \
-  php81-xml \
-  php81-xmlreader \
-  php81-zlib \
-  php81-redis \
-  php81-tokenizer \
-  php81-fileinfo \
-  php81-zip \
-  php81-pdo \
-  php81-pdo_mysql \
-  php81-pdo_pgsql \
-  php81-exif \
-  php81-xmlwriter \
-  php81-pecl-xdebug \
+  php83 \
+  php83-ctype \
+  php83-curl \
+  php83-dom \
+  php83-fpm \
+  php83-gd \
+  php83-intl \
+  php83-mbstring \
+  php83-mysqli \
+  php83-opcache \
+  php83-openssl \
+  php83-phar \
+  php83-session \
+  php83-xml \
+  php83-xmlreader \
+  php83-zlib \
+  php83-redis \
+  php83-tokenizer \
+  php83-fileinfo \
+  php83-zip \
+  php83-pdo \
+  php83-pdo_mysql \
+  php83-pdo_pgsql \
+  php83-exif \
+  php83-xmlwriter \
+  php83-pecl-xdebug \
   supervisor
 
 # Create symlink so programs depending on `php` still function
-RUN ln -s /usr/bin/php81 /usr/bin/php
+RUN ln -s /usr/bin/php83 /usr/bin/php
 
-RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
-    php -r "if (hash_file('sha384', 'composer-setup.php') === 'dac665fdc30fdd8ec78b38b9800061b4150413ff2e3b6f88543c636f7cd84f6db9189d43a81e5503cda447da73c7e5b6') { echo 'Installer verified'.PHP_EOL; } else { echo 'Installer corrupt'.PHP_EOL; unlink('composer-setup.php'); exit(1); }" && \
-    php composer-setup.php && \
-    php -r "unlink('composer-setup.php');" && \
-    mv composer.phar /usr/local/bin/composer
+COPY --from=docker.io/composer:2 /usr/bin/composer /usr/local/bin/composer
 
 # Configure nginx
 COPY config/nginx.conf /etc/nginx/nginx.conf
 
 # Configure PHP-FPM
-COPY config/fpm-pool.conf /etc/php81/php-fpm.d/www.conf
-COPY config/php.ini /etc/php81/conf.d/custom.ini
+COPY config/fpm-pool.conf /etc/php83/php-fpm.d/www.conf
+COPY config/php.ini /etc/php83/conf.d/custom.ini
 
 # Configure supervisord
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Make sure files/folders needed by the processes are accessable when they run under the nobody user
-RUN chown -R nobody.nobody /var/www/html /run /var/lib/nginx /var/log/nginx
+RUN chown -R nobody:nobody /var/www/html /run /var/lib/nginx /var/log/nginx
 
 # Switch to use a non-root user from here on
 USER nobody
